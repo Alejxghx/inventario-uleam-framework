@@ -1,0 +1,244 @@
+<div class="barra_principal">
+  <h1 class="titulo-principal">Consulta de Inventario</h1>
+
+  <div style="display: flex; align-items: center; gap: 16px;">
+    <span style="color: #666; font-weight: 500;">Facultad de Informática</span>
+    <button class="btn-rojo" (click)="cerrarSesion()">Cerrar Sesión</button>
+    <button class="btn-blue" (click)="irGestionXmlJson()">Gestión XML/JSON</button>
+    <img
+      src="https://www.uleam.edu.ec/wp-content/uploads/2012/09/LOGO-ULEAM-VERTICAL.png"
+      class="logo-uleam"
+      style="height: 70px;"
+    />
+  </div>
+</div>
+
+<div style="max-width: 1300px; margin: auto; padding: 20px;">
+  <!-- Resumen ejecutivo -->
+  <div class="resumen-box">
+    <h2>📊 Resumen Ejecutivo</h2>
+    <p [innerHTML]="resumenTexto"></p>
+  </div>
+
+  <!-- Dashboard de estadísticas -->
+  <div class="dashboard-container">
+    <div class="stat-card">
+      <h3>Total de Equipos</h3>
+      <div class="numero-grande">{{ stats.total }}</div>
+      <div class="descripcion">En toda la facultad</div>
+    </div>
+    <div class="stat-card azul">
+      <h3>Equipos Activos</h3>
+      <div class="numero-grande">{{ stats.activos }}</div>
+      <div class="descripcion">{{ porcActivos }}% operativos</div>
+    </div>
+    <div class="stat-card amarillo">
+      <h3>En Reparación</h3>
+      <div class="numero-grande">{{ stats.enReparacion }}</div>
+      <div class="descripcion">{{ porcReparacion }}% del total</div>
+    </div>
+    <div class="stat-card rojo">
+      <h3>Dados de Baja</h3>
+      <div class="numero-grande">{{ stats.dadosDeBaja }}</div>
+      <div class="descripcion">{{ porcBaja }}% del total</div>
+    </div>
+  </div>
+
+  <!-- Navegación por pestañas -->
+  <div class="tabs-nav">
+    <button [class.activo]="tabActivo === 'inventario'" (click)="cambiarTab('inventario')">
+      Inventario Completo
+    </button>
+    <button [class.activo]="tabActivo === 'ubicaciones'" (click)="cambiarTab('ubicaciones')">
+      Por Ubicaciones
+    </button>
+    <button [class.activo]="tabActivo === 'estadisticas'" (click)="cambiarTab('estadisticas')">
+      Estadísticas
+    </button>
+    <button [class.activo]="tabActivo === 'mantenimientos'" (click)="cambiarTab('mantenimientos')">
+      Historial Mantenimiento
+    </button>
+  </div>
+
+  <!-- TAB 1: Inventario Completo -->
+  <div *ngIf="tabActivo === 'inventario'">
+    <div class="seccion">
+      <h2>Inventario General</h2>
+
+      <div class="filtros-investigacion">
+        <select [(ngModel)]="filtros.ubicacion" (change)="aplicarFiltros()">
+          <option value="">Todas las ubicaciones</option>
+          <option *ngFor="let u of ubicaciones">{{ u }}</option>
+        </select>
+
+        <select [(ngModel)]="filtros.tipo" (change)="aplicarFiltros()">
+          <option value="">Todos los tipos</option>
+          <option *ngFor="let t of tipos">{{ t }}</option>
+        </select>
+
+        <select [(ngModel)]="filtros.estado" (change)="aplicarFiltros()">
+          <option value="">Todos los estados</option>
+          <option>Activo</option>
+          <option>En reparación</option>
+          <option>Dado de baja</option>
+        </select>
+
+        <input
+          type="text"
+          placeholder="Buscar equipo..."
+          [(ngModel)]="filtros.buscar"
+          (input)="aplicarFiltros()"
+        />
+
+        <button class="btn-exportar" (click)="exportarExcel()">📥 Exportar Excel</button>
+        <button class="btn-exportar" style="background:#d83919;" (click)="exportarPDF()">
+          📄 Exportar PDF
+        </button>
+      </div>
+
+      <table class="tabla-consulta">
+        <thead>
+          <tr>
+            <th>Equipo</th>
+            <th>Tipo</th>
+            <th>Ubicación</th>
+            <th>Estado</th>
+            <th>N.º de Serie</th>
+            <th>Responsable</th>
+            <th>Valor</th>
+            <th>Último Mantenimiento</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngIf="inventarioFiltrado.length === 0">
+            <td colspan="8" style="text-align:center;padding:30px;color:#888;">
+              No se encontraron equipos
+            </td>
+          </tr>
+          <tr *ngFor="let item of inventarioFiltrado">
+            <td><strong>{{ item.nombre }}</strong></td>
+            <td>{{ item.tipo }}</td>
+            <td>{{ item.ubicacion }}</td>
+            <td>
+              <span class="badge-estado" [ngClass]="badgeClase(item.estado)">
+                {{ item.estado }}
+              </span>
+            </td>
+            <td>{{ item.serie }}</td>
+            <td>{{ item.responsable }}</td>
+            <td>{{ item.valor | currency:'USD':'symbol':'1.2-2':'es-EC' }}</td>
+            <td>{{ item.fecha }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- TAB 2: Por Ubicaciones -->
+  <div *ngIf="tabActivo === 'ubicaciones'">
+    <div class="seccion">
+      <h2>Equipos por Ubicación</h2>
+      <div class="ubicacion-grid">
+        <div class="ubicacion-card" *ngFor="let u of resumenUbicaciones">
+          <h4>📍 {{ u.nombre }}</h4>
+          <div class="info-line">
+            <strong>Total equipos:</strong>
+            <span>{{ u.total }}</span>
+          </div>
+          <div class="info-line" *ngFor="let t of u.tipos">
+            <strong>{{ t.tipo }}:</strong>
+            <span>{{ t.cantidad }}</span>
+          </div>
+          <div class="info-line">
+            <strong>Estado:</strong>
+            <span class="badge-estado activo">{{ u.activos }} Activos</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 3: Estadísticas -->
+  <div *ngIf="tabActivo === 'estadisticas'">
+    <div class="grafico-container">
+      <h2>Distribución de Equipos por Tipo</h2>
+      <div class="grafico-barras">
+        <div class="barra" *ngFor="let b of barrasTipos">
+          <div
+            class="barra-visual"
+            [style.height.%]="b.altura"
+            [style.background]="b.color"
+          >
+            <div class="barra-valor">{{ b.cantidad }}</div>
+          </div>
+          <div class="barra-label">{{ b.tipo }}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="seccion">
+      <h2>Análisis de Inversión</h2>
+      <div class="dashboard-container">
+        <div class="stat-card azul">
+          <h3>Inversión Total</h3>
+          <div class="numero-grande">{{ inversionTotal | currency:'USD':'symbol':'1.2-2':'es-EC' }}</div>
+          <div class="descripcion">En equipos activos</div>
+        </div>
+        <div class="stat-card">
+          <h3>Promedio por Equipo</h3>
+          <div class="numero-grande">{{ promedioEquipo | currency:'USD':'symbol':'1.2-2':'es-EC' }}</div>
+          <div class="descripcion">Valor medio</div>
+        </div>
+        <div class="stat-card amarillo">
+          <h3>Valor en Reparación</h3>
+          <div class="numero-grande">{{ valorReparacion | currency:'USD':'symbol':'1.2-2':'es-EC' }}</div>
+          <div class="descripcion">Equipos en servicio</div>
+        </div>
+        <div class="stat-card rojo">
+          <h3>Equipos Críticos</h3>
+          <div class="numero-grande">{{ stats.enReparacion }}</div>
+          <div class="descripcion">Requieren atención</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TAB 4: Historial de Mantenimiento -->
+  <div *ngIf="tabActivo === 'mantenimientos'">
+    <div class="seccion">
+      <h2>Historial de Mantenimientos</h2>
+
+      <div class="mantenimiento-timeline">
+        <div class="timeline-item" *ngFor="let ord of timelineMantenimiento">
+          <div class="timeline-icono">
+            <!-- mismo SVG que en el HTML original -->
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              viewBox="0 0 24 24"
+            >
+              <path
+                d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"
+              />
+            </svg>
+          </div>
+          <div class="timeline-contenido">
+            <div class="timeline-fecha">{{ ord.fechaCreacion }}</div>
+            <div class="timeline-titulo">{{ ord.tipo }} - {{ ord.equipoNombre }}</div>
+            <div class="timeline-detalle">
+              {{ ord.descripcion }} | Estado: {{ ord.estado }}
+            </div>
+          </div>
+        </div>
+
+        <p *ngIf="timelineMantenimiento.length === 0" style="text-align:center;color:#888;padding:30px;">
+          No hay historial de mantenimiento disponible
+        </p>
+      </div>
+    </div>
+  </div>
+</div>

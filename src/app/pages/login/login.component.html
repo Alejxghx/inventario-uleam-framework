@@ -1,0 +1,50 @@
+<!-- Barra superior con logo -->
+<div class="barra_principal">
+  <div></div>
+  <img src="https://www.uleam.edu.ec/wp-content/uploads/2012/09/LOGO-ULEAM-VERTICAL.png"
+       alt="Logo ULEAM"
+       class="logo-uleam">
+</div>
+
+<h1 class="titulo-principal">{{ titulo }}</h1>
+
+<p class="subtitulo">
+  Has seleccionado el rol <span>{{ rolBreve }}</span>. Ingresa tus credenciales para continuar.
+</p>
+
+<div class="contenedor-roles" style="align-items:flex-start;">
+  <form (ngSubmit)="onSubmit()" #loginForm="ngForm"
+        style="background:#fff;border:1.5px solid #d5daea;border-radius:14px;padding:28px 24px;min-width:340px;flex:2;">
+
+    <h2 style="font-size:1.15em;margin-bottom:12px;">Credenciales</h2>
+
+    <label for="usuario" style="color:#444;">Usuario</label><br>
+    <input type="text" id="usuario" name="usuario"
+           [(ngModel)]="usuario"
+           placeholder="nombre.apellido"
+           style="width:100%;padding:8px 12px;border:1px solid #d5daea;border-radius:8px;margin-bottom:14px;background:#f6f9ff;"><br>
+
+    <label for="clave" style="color:#444;">Contraseña</label><br>
+    <input type="password" id="clave" name="clave"
+           [(ngModel)]="clave"
+           placeholder="●●●●●●"
+           style="width:100%;padding:8px 12px;border:1px solid #d5daea;border-radius:8px;margin-bottom:12px;background:#f6f9ff;"><br>
+
+    <div *ngIf="error" style="color:#c0392b;margin-top:8px;">
+      Usuario o contraseña incorrectos.
+    </div>
+
+    <div style="display:flex;gap:14px;margin-top:12px;">
+      <button type="button" class="btn-rojo" (click)="volver()">&#8592; Atrás</button>
+      <button type="submit" class="btn-verde">Ingresar</button>
+    </div>
+  </form>
+
+  <div class="resumen-rol" style="margin-left:0;">
+    <div style="border-radius:8px; background:#c1f5c7; padding:11px 14px; margin-bottom:10px; font-size:1em;">
+      <span style="color:#1a3434;">Rol seleccionado</span><br>
+      <strong>{{ rolBreve }}</strong>
+    </div>
+    <div [innerHTML]="permisosHtml" style="font-size:.98em;"></div>
+  </div>
+</div>

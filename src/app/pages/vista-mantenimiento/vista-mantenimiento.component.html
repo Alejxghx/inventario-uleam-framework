@@ -1,0 +1,375 @@
+<div class="barra_principal">
+  <h1 class="titulo-principal">Gestión de Mantenimiento</h1>
+
+  <div style="display: flex; align-items: center; gap: 16px;">
+    <button class="btn-rojo" (click)="cerrarSesion()">Cerrar Sesión</button>
+    <button class="btn-blue" (click)="irGestionXmlJson()">Gestión XML/JSON</button>
+    <img
+      src="https://www.uleam.edu.ec/wp-content/uploads/2012/09/LOGO-ULEAM-VERTICAL.png"
+      class="logo-uleam"
+      style="height: 70px;"
+    />
+  </div>
+</div>
+
+<div style="max-width: 1200px; margin: auto; padding: 20px;">
+  <!-- Estadísticas -->
+  <div class="cards-grid">
+    <div class="stat-card pendiente">
+      <h3>Órdenes Pendientes</h3>
+      <div class="valor">{{ stats.pendientes }}</div>
+    </div>
+    <div class="stat-card proceso">
+      <h3>En Proceso</h3>
+      <div class="valor">{{ stats.enProceso }}</div>
+    </div>
+    <div class="stat-card completado">
+      <h3>Completadas</h3>
+      <div class="valor">{{ stats.completadas }}</div>
+    </div>
+    <div class="stat-card">
+      <h3>Total Órdenes</h3>
+      <div class="valor">{{ stats.total }}</div>
+    </div>
+  </div>
+
+  <!-- Barra de filtros y acciones -->
+  <div class="filtros-bar">
+    <input
+      type="text"
+      placeholder="Buscar por equipo, N.º orden..."
+      [(ngModel)]="filtros.busqueda"
+      (input)="filtrarOrdenes()"
+    />
+
+    <select [(ngModel)]="filtros.estado" (change)="filtrarOrdenes()">
+      <option value="">Todos los estados</option>
+      <option>Pendiente</option>
+      <option>En proceso</option>
+      <option>Completado</option>
+      <option>Cancelado</option>
+    </select>
+
+    <select [(ngModel)]="filtros.prioridad" (change)="filtrarOrdenes()">
+      <option value="">Todas las prioridades</option>
+      <option>Alta</option>
+      <option>Media</option>
+      <option>Baja</option>
+    </select>
+
+    <button class="btn-filtro" (click)="limpiarFiltros()">Limpiar</button>
+
+    <button
+      class="btn-verde"
+      style="margin-left: auto; padding: 8px 20px; border-radius: 8px; border: none; font-weight: 600; cursor: pointer;"
+      (click)="abrirModalNuevaOrden()"
+    >
+      + Nueva Orden
+    </button>
+  </div>
+
+  <!-- Pestañas -->
+  <div class="tabs-container">
+    <button
+      [class.activo]="tabActivo === 'ordenes'"
+      (click)="cambiarTab('ordenes')"
+    >
+      Órdenes de Trabajo
+    </button>
+    <button
+      [class.activo]="tabActivo === 'historial'"
+      (click)="cambiarTab('historial')"
+    >
+      Historial de Equipos
+    </button>
+    <button
+      [class.activo]="tabActivo === 'calendario'"
+      (click)="cambiarTab('calendario')"
+    >
+      Calendario
+    </button>
+  </div>
+
+  <!-- Tab: Órdenes de Trabajo -->
+  <div *ngIf="tabActivo === 'ordenes'">
+    <div *ngIf="ordenesFiltradas.length === 0" style="text-align:center;padding:40px;color:#888;">
+      No hay órdenes registradas
+    </div>
+
+    <div *ngFor="let orden of ordenesFiltradas" class="orden-card" [ngClass]="claseEstado(orden)">
+      <div class="orden-header">
+        <div class="orden-id">{{ orden.id }}</div>
+        <span class="badge-estado" [ngClass]="claseEstado(orden)">{{ orden.estado }}</span>
+      </div>
+
+      <div class="orden-info">
+        <div class="info-item">
+          <strong>Equipo:</strong> <span>{{ orden.equipoNombre }}</span>
+        </div>
+        <div class="info-item">
+          <strong>Ubicación:</strong> <span>{{ orden.ubicacion }}</span>
+        </div>
+        <div class="info-item">
+          <strong>Prioridad:</strong>
+          <span [style.color]="colorPrioridad(orden.prioridad)" style="font-weight:600;">
+            {{ orden.prioridad }}
+          </span>
+        </div>
+        <div class="info-item">
+          <strong>Asignado:</strong> <span>{{ orden.asignado }}</span>
+        </div>
+        <div class="info-item">
+          <strong>Fecha creación:</strong> <span>{{ orden.fechaCreacion }}</span>
+        </div>
+        <div class="info-item">
+          <strong>Fecha límite:</strong> <span>{{ orden.fechaLimite }}</span>
+        </div>
+      </div>
+
+      <div class="orden-descripcion">
+        <strong>Problema:</strong> {{ orden.descripcion }}
+      </div>
+
+      <div class="orden-acciones">
+        <button class="btn-accion ver" (click)="verDetalleOrden(orden)">Ver Detalles</button>
+
+        <button
+          *ngIf="orden.estado === 'Pendiente'"
+          class="btn-accion completar"
+          (click)="cambiarEstadoOrden(orden, 'En proceso')"
+        >
+          Iniciar
+        </button>
+
+        <button
+          *ngIf="orden.estado === 'En proceso'"
+          class="btn-accion completar"
+          (click)="cambiarEstadoOrden(orden, 'Completado')"
+        >
+          Completar
+        </button>
+
+        <button
+          *ngIf="orden.estado !== 'Completado' && orden.estado !== 'Cancelado'"
+          class="btn-accion editar"
+          (click)="cambiarEstadoOrden(orden, 'Cancelado')"
+        >
+          Cancelar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Historial de Equipos -->
+  <div *ngIf="tabActivo === 'historial'">
+    <div
+      style="background: #fff; border-radius: 12px; padding: 22px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);"
+    >
+      <h2 style="margin: 0 0 16px 0;">Historial de Mantenimiento por Equipo</h2>
+
+      <div *ngIf="historialEquipos.length === 0" style="color:#888;text-align:center;padding:30px;">
+        No hay historial disponible
+      </div>
+
+      <div *ngFor="let item of historialEquipos" style="border: 1.5px solid #d5daea; border-radius: 10px; padding: 18px; margin-bottom: 16px;">
+        <h3 style="margin: 0 0 12px 0; color: #222;">{{ item.equipo.nombre }}</h3>
+
+        <div
+          style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-bottom: 16px; padding-bottom: 16px; border-bottom: 1px solid #eee;"
+        >
+          <div><strong>Serie:</strong> {{ item.equipo.serie }}</div>
+          <div><strong>Ubicación:</strong> {{ item.equipo.ubicacion }}</div>
+          <div><strong>Total mantenimientos:</strong> {{ item.ordenes.length }}</div>
+          <div><strong>Último:</strong> {{ item.ordenes[0]?.fechaCreacion || 'N/A' }}</div>
+        </div>
+
+        <div class="timeline">
+          <div class="timeline-item" *ngFor="let ord of item.ordenes">
+            <div
+              class="timeline-dot"
+              [style.background]="ord.estado === 'Completado' ? '#47b562' : '#f39c12'"
+            ></div>
+            <div class="timeline-content">
+              <div class="timeline-fecha">{{ ord.fechaCreacion }}</div>
+              <div class="timeline-texto">
+                <strong>{{ ord.tipo }}:</strong> {{ ord.descripcion }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab: Calendario -->
+  <div *ngIf="tabActivo === 'calendario'">
+    <div
+      style="background: #fff; border-radius: 12px; padding: 22px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);"
+    >
+      <h2 style="margin: 0 0 16px 0;">Programación de Mantenimientos</h2>
+      <p style="color: #666; margin-bottom: 20px;">
+        Visualiza los mantenimientos programados y las fechas límite de órdenes activas.
+      </p>
+
+      <div *ngIf="ordenesCalendario.length === 0" style="color:#888;text-align:center;padding:30px;">
+        No hay órdenes programadas
+      </div>
+
+      <div
+        *ngIf="ordenesCalendario.length > 0"
+        style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 14px;"
+      >
+        <div
+          *ngFor="let ord of ordenesCalendario"
+          [style.border]="'2px solid ' + colorPrioridad(ord.prioridad)"
+          [style.background]="bgColorPrioridad(ord.prioridad)"
+          style="border-radius: 10px; padding: 16px;"
+        >
+          <div
+            style="font-weight: 700; margin-bottom: 8px;"
+            [style.color]="colorPrioridad(ord.prioridad)"
+          >
+            {{ ord.fechaLimite }}
+          </div>
+          <div style="font-size: 0.95em; color: #555;">
+            <strong>{{ ord.estado }}:</strong> {{ ord.id }}<br />
+            {{ ord.equipoNombre }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Nueva Orden -->
+<div class="modal" [class.show]="modalNuevaAbierto">
+  <div class="modal-content">
+    <h2>Nueva Orden de Trabajo</h2>
+
+    <form (ngSubmit)="guardarOrden()">
+      <div class="form-grupo">
+        <label>Equipo *</label>
+        <select [(ngModel)]="formOrden.equipoId" name="equipoOrden" required>
+          <option value="">Seleccionar equipo</option>
+          <option *ngFor="let eq of equiposInventario" [value]="eq.id">
+            {{ eq.nombre }} - {{ eq.ubicacion }}
+          </option>
+        </select>
+      </div>
+
+      <div class="form-grupo">
+        <label>Tipo de Mantenimiento *</label>
+        <select [(ngModel)]="formOrden.tipo" name="tipoMant" required>
+          <option value="">Seleccionar tipo</option>
+          <option>Preventivo</option>
+          <option>Correctivo</option>
+          <option>Actualización</option>
+          <option>Instalación</option>
+        </select>
+      </div>
+
+      <div class="form-grupo">
+        <label>Prioridad *</label>
+        <select [(ngModel)]="formOrden.prioridad" name="prioridadOrden" required>
+          <option>Baja</option>
+          <option>Media</option>
+          <option>Alta</option>
+        </select>
+      </div>
+
+      <div class="form-grupo">
+        <label>Asignar a *</label>
+        <select [(ngModel)]="formOrden.asignado" name="asignadoOrden" required>
+          <option value="">Seleccionar técnico</option>
+          <option>Carlos Ruiz</option>
+          <option>María López</option>
+          <option>Pedro Sánchez</option>
+        </select>
+      </div>
+
+      <div class="form-grupo">
+        <label>Fecha límite *</label>
+        <input type="date" [(ngModel)]="formOrden.fechaLimite" name="fechaLimite" required />
+      </div>
+
+      <div class="form-grupo">
+        <label>Descripción del problema *</label>
+        <textarea
+          [(ngModel)]="formOrden.descripcion"
+          name="descripcionOrden"
+          placeholder="Detalla el problema o mantenimiento requerido..."
+          required
+        ></textarea>
+      </div>
+
+      <div class="form-acciones">
+        <button type="button" class="btn-rojo" (click)="cerrarModalOrden()">Cancelar</button>
+        <button type="submit" class="btn-verde">Crear Orden</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Detalles de Orden -->
+<div class="modal" [class.show]="modalDetalleAbierto">
+  <div class="modal-content">
+    <h2>{{ ordenActual?.id ? ('Orden ' + (ordenActual?.id || '')) : '' }}</h2>
+
+    <div *ngIf="ordenActual">
+      <div style="margin-bottom: 16px;">
+        <strong>Estado:</strong>
+        <span class="badge-estado" [ngClass]="claseEstado(ordenActual)">
+          {{ ordenActual.estado }}
+        </span>
+      </div>
+
+      <div
+        style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px;"
+      >
+        <div><strong>Equipo:</strong> {{ ordenActual.equipoNombre }}</div>
+        <div><strong>Ubicación:</strong> {{ ordenActual.ubicacion }}</div>
+        <div><strong>Prioridad:</strong> {{ ordenActual.prioridad }}</div>
+        <div><strong>Tipo:</strong> {{ ordenActual.tipo }}</div>
+        <div><strong>Asignado:</strong> {{ ordenActual.asignado }}</div>
+        <div><strong>Fecha límite:</strong> {{ ordenActual.fechaLimite }}</div>
+      </div>
+
+      <div style="background: #f6f9ff; padding: 14px; border-radius: 8px; margin-bottom: 16px;">
+        <strong>Descripción:</strong><br />
+        {{ ordenActual.descripcion }}
+      </div>
+
+      <h3 style="margin: 16px 0 10px 0;">Historial de Actividad</h3>
+
+      <div class="timeline">
+        <div class="timeline-item" *ngFor="let h of ordenActual?.historial">
+          <div class="timeline-dot"></div>
+          <div class="timeline-content">
+            <div class="timeline-fecha">{{ h.fecha }}</div>
+            <div class="timeline-texto">{{ h.accion }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div
+        *ngIf="ordenActual.estado !== 'Completado' && ordenActual.estado !== 'Cancelado'"
+        style="margin-top: 20px;"
+      >
+        <label style="font-weight: 600; display: block; margin-bottom: 8px;">Agregar Nota</label>
+        <textarea
+          [(ngModel)]="notaNueva"
+          name="notaOrden"
+          style="width: 100%; padding: 10px; border: 1.5px solid #d5daea; border-radius: 8px; min-height: 60px;"
+          placeholder="Escribe una actualización..."
+        ></textarea>
+        <button class="btn-verde" style="margin-top: 10px;" (click)="agregarNotaOrden()">
+          Agregar Nota
+        </button>
+      </div>
+    </div>
+
+    <div class="form-acciones" style="margin-top: 20px;">
+      <button class="btn-rojo" (click)="cerrarModalDetalle()">Cerrar</button>
+    </div>
+  </div>
+</div>

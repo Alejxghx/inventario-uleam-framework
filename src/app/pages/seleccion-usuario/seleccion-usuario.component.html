@@ -1,0 +1,44 @@
+<div class="barra_principal">
+  <h1 class="titulo-principal"><strong>Selección de Tipo de Usuario</strong></h1>
+  <img src="https://www.uleam.edu.ec/wp-content/uploads/2012/09/LOGO-ULEAM-VERTICAL.png"
+       alt="Logo ULEAM"
+       class="logo-uleam">
+</div>
+
+<p class="subtitulo">Elige un único rol para continuar.</p>
+<button class="btn-roles">Roles disponibles</button>
+
+<br><br>
+
+<div class="contenedor-roles">
+  <div class="seleccion-roles">
+    <div
+      class="rol-card"
+      *ngFor="let r of roles"
+      [class.activo]="r.nombre === rolActivo"
+      (click)="seleccionarRol(r)"
+    >
+      <div class="icono" [innerHTML]="r.iconoSvg"></div>
+      <strong>{{ r.nombre }}</strong>
+      <span>{{ r.descripcion }}</span>
+    </div>
+  </div>
+
+  <div class="resumen-rol">
+    <h3>Resumen del rol</h3>
+    <strong>{{ resumen.titulo }}</strong>
+    <ul>
+      <li *ngFor="let item of resumen.items">{{ item }}</li>
+    </ul>
+    <p style="margin-top:8px">
+      Al confirmar, se registrará la selección de este rol para el usuario.
+    </p>
+  </div>
+</div>
+
+<p>Rol seleccionado: {{ rolActivo }}</p>
+
+<div>
+  <button class="btn-rojo" (click)="volver()">Atrás</button>
+  <button class="btn-verde" (click)="confirmar()">Confirmar</button>
+</div>
