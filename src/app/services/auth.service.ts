@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
+import { StorageService } from './storage.service';
 
 export type RolSesion = 'ADMIN' | 'INVENTARIO' | 'MANTENIMIENTO' | 'USUARIO';
 
@@ -8,33 +9,35 @@ export interface UsuarioSesion {
   nombre: string;
   usuario: string;
   rol: RolSesion;
+  fechaIngreso?: string;
 }
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private storageKey = 'uleam_usuario_sesion';
   private _sesion$ = new BehaviorSubject<UsuarioSesion | null>(this.loadFromStorage());
+
+  constructor(private storage: StorageService) {}
 
   get sesion$(): Observable<UsuarioSesion | null> {
     return this._sesion$.asObservable();
   }
 
   loginFake(usuario: UsuarioSesion) {
-    this._sesion$.next(usuario);
-    try {
-      localStorage.setItem(this.storageKey, JSON.stringify(usuario));
-    } catch {
-      // ignore storage errors
-    }
+    const usuarioConFecha = {
+      ...usuario,
+      fechaIngreso: new Date().toISOString()
+    };
+    
+    this._sesion$.next(usuarioConFecha);
+    this.storage.set(this.storage.keys.SESION, usuarioConFecha);
+    
+    console.log('✅ Sesión iniciada y guardada en localStorage:', usuarioConFecha);
   }
 
   logout() {
     this._sesion$.next(null);
-    try {
-      localStorage.removeItem(this.storageKey);
-    } catch {
-      // ignore
-    }
+    this.storage.remove(this.storage.keys.SESION);
+    console.log('🚪 Sesión cerrada y removida de localStorage');
   }
 
   getSesion(): UsuarioSesion | null {
@@ -51,11 +54,19 @@ export class AuthService {
   }
 
   private loadFromStorage(): UsuarioSesion | null {
-    try {
-      const raw = localStorage.getItem(this.storageKey);
-      return raw ? (JSON.parse(raw) as UsuarioSesion) : null;
-    } catch {
-      return null;
+    const sesion = this.storage.get<UsuarioSesion>(this.storage.keys.SESION);
+    if (sesion) {
+      console.log('✅ Sesión recuperada de localStorage:', sesion);
+    }
+    return sesion;
+  }
+
+  actualizarSesion(cambios: Partial<UsuarioSesion>) {
+    const actual = this._sesion$.value;
+    if (actual) {
+      const actualizada = { ...actual, ...cambios };
+      this._sesion$.next(actualizada);
+      this.storage.set(this.storage.keys.SESION, actualizada);
     }
   }
 }

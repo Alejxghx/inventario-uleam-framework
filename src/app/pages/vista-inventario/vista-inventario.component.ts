@@ -6,7 +6,7 @@ import {
   InventarioService,
   Equipo,
   StatsInventario,
-} from '../../services/inventario'; 
+} from '../../services/inventario.service'; 
 
 @Component({
   selector: 'app-vista-inventario',

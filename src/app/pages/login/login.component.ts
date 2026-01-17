@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { NgIf } from '@angular/common';
@@ -22,7 +22,7 @@ interface Credenciales {
   templateUrl: './login.component.html',
   styleUrls: ['./login.component.scss'],
 })
-export class LoginComponent {
+export class LoginComponent implements OnInit {
   rol: RolKey = 'Administrador';
   titulo = 'Ingreso para Administrador';
   rolBreve = 'Administrador';
@@ -84,7 +84,9 @@ export class LoginComponent {
     private router: Router,
     private route: ActivatedRoute,
     private auth: AuthService,
-  ) {
+  ) {}
+
+  ngOnInit() {
     const rolFromQuery = (this.route.snapshot.queryParamMap.get('rol') as RolKey) || 'Administrador';
     this.setRol(rolFromQuery);
   }

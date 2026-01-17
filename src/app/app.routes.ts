@@ -9,7 +9,7 @@ import { VistaAdministradorComponent } from './pages/vista-administrador/vista-a
 import { VistaInventarioComponent } from './pages/vista-inventario/vista-inventario.component';
 import { VistaMantenimientoComponent } from './pages/vista-mantenimiento/vista-mantenimiento.component';
 import { VistaUsuarioComponent } from './pages/vista-usuario/vista-usuario.component';
-
+import { StorageManagerComponent } from './pages/storage-manager/storage-manager.component';
 
 export const routes: Routes = [
   { path: '', redirectTo: 'seleccion-usuario', pathMatch: 'full' },
@@ -19,4 +19,5 @@ export const routes: Routes = [
   { path: 'inventario', component: VistaInventarioComponent, canActivate: [AuthGuard, inventarioGuard] },
   { path: 'mantenimiento', component: VistaMantenimientoComponent, canActivate: [AuthGuard, mantenimientoGuard] },
   { path: 'usuario', component: VistaUsuarioComponent, canActivate: [AuthGuard] },
+  { path: 'storage-manager', component: StorageManagerComponent, canActivate: [AuthGuard, adminGuard] },
 ];
