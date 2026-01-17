@@ -1,26 +1,12 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { NgIf, NgFor, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-interface Usuario {
-  id?: number;
-  nombre: string;
-  usuario: string;
-  email: string;
-  password: string;
-  rol: string;
-  estado: string;
-  ultimoAcceso?: string;
-}
-
-interface RegistroAuditoria {
-  fecha: string;
-  usuario: string;
-  accion: string;
-  modulo: string;
-  detalles: string;
-}
+import { UsuariosService, Usuario } from '../../services/usuarios.service';
+import { InventarioService } from '../../services/inventario.service';
+import { OrdenesService } from '../../services/ordenes.service';
+import { AuditoriaService, RegistroAuditoria } from '../../services/auditoria.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-vista-administrador',
@@ -29,7 +15,7 @@ interface RegistroAuditoria {
   templateUrl: './vista-administrador.component.html',
   styleUrls: ['./vista-administrador.component.scss'],
 })
-export class VistaAdministradorComponent {
+export class VistaAdministradorComponent implements OnInit {
   // estadísticas
   totalUsuarios = 0;
   totalEquipos = 0;
@@ -65,12 +51,37 @@ export class VistaAdministradorComponent {
     frecRespaldo: 'Diario',
   };
 
-  constructor(private router: Router) {
-    this.cargarDatos(); // aquí luego metemos las llamadas a SistemaULEAM
+  constructor(
+    private router: Router,
+    private usuariosService: UsuariosService,
+    private inventarioService: InventarioService,
+    private ordenesService: OrdenesService,
+    private auditoriaService: AuditoriaService,
+    private authService: AuthService
+  ) {}
+
+  ngOnInit() {
+    this.cargarDatos();
   }
 
   cargarDatos() {
-    // TODO: leer de SistemaULEAM.* y llenar usuarios, stats y registrosAuditoria
+    // Cargar usuarios
+    this.usuarios = this.usuariosService.obtenerTodos();
+    this.totalUsuarios = this.usuarios.length;
+
+    // Cargar estadísticas de inventario
+    this.inventarioService.getTodosLocal().subscribe(equipos => {
+      const stats = this.inventarioService.obtenerEstadisticas(equipos);
+      this.totalEquipos = stats.total;
+      this.equiposReparacion = stats.enReparacion;
+    });
+
+    // Cargar estadísticas de órdenes
+    const statsOrdenes = this.ordenesService.obtenerEstadisticas();
+    this.ordenesCompletadas = statsOrdenes.completadas;
+
+    // Cargar auditoría
+    this.registrosAuditoria = this.auditoriaService.obtenerTodos();
   }
 
   cambiarTab(tab: 'usuarios' | 'permisos' | 'auditoria' | 'config') {
@@ -104,32 +115,108 @@ export class VistaAdministradorComponent {
   }
 
   guardarUsuario() {
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Sistema';
+
     if (this.usuarioEditandoId != null) {
-      // editar
-      // TODO: llamar a SistemaULEAM.Usuarios.actualizar(...)
+      // Editar usuario existente
+      this.usuariosService.actualizar(this.usuarioEditandoId, this.formUsuario)
+        .subscribe(() => {
+          // Registrar en auditoría
+          this.auditoriaService.registrar({
+            usuario: usuarioActual,
+            accion: 'Actualización de usuario',
+            modulo: 'Usuarios',
+            detalles: `Usuario actualizado: ${this.formUsuario.usuario}`
+          });
+          
+          alert('✅ Usuario actualizado correctamente');
+          this.cerrarModal();
+          this.cargarDatos();
+        });
     } else {
-      // nuevo
-      // TODO: llamar a SistemaULEAM.Usuarios.agregar(...)
+      // Crear nuevo usuario
+      this.usuariosService.agregar(this.formUsuario)
+        .subscribe(() => {
+          // Registrar en auditoría
+          this.auditoriaService.registrar({
+            usuario: usuarioActual,
+            accion: 'Creación de usuario',
+            modulo: 'Usuarios',
+            detalles: `Nuevo usuario: ${this.formUsuario.usuario}`
+          });
+          
+          alert('✅ Usuario creado correctamente');
+          this.cerrarModal();
+          this.cargarDatos();
+        });
     }
-    this.cerrarModal();
-    this.cargarDatos();
   }
 
   eliminarUsuario(user: Usuario) {
-    // TODO: confirm + SistemaULEAM.Usuarios.eliminar(user.id)
-    this.cargarDatos();
+    if (!user.id) return;
+    
+    if (!confirm(`¿Está seguro de eliminar al usuario "${user.nombre}"?\n\nEsta acción no se puede deshacer.`)) {
+      return;
+    }
+
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Sistema';
+
+    this.usuariosService.eliminar(user.id).subscribe(() => {
+      // Registrar en auditoría
+      this.auditoriaService.registrar({
+        usuario: usuarioActual,
+        accion: 'Eliminación de usuario',
+        modulo: 'Usuarios',
+        detalles: `Usuario eliminado: ${user.usuario}`
+      });
+      
+      alert('✅ Usuario eliminado correctamente');
+      this.cargarDatos();
+    });
   }
 
   guardarConfiguracion() {
-    alert('✅ Configuración guardada correctamente');
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Sistema';
+
+    // Guardar configuración en localStorage
+    try {
+      localStorage.setItem('uleam_config', JSON.stringify(this.config));
+      
+      // Registrar en auditoría
+      this.auditoriaService.registrar({
+        usuario: usuarioActual,
+        accion: 'Actualización de configuración',
+        modulo: 'Configuración',
+        detalles: 'Configuración del sistema actualizada'
+      });
+      
+      alert('✅ Configuración guardada correctamente');
+    } catch (e) {
+      alert('❌ Error al guardar la configuración');
+      console.error(e);
+    }
   }
 
   cerrarSesion() {
-    // TODO: SistemaULEAM.Utils.cerrarSesionGlobal();
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Usuario';
+
+    // Registrar cierre de sesión
+    this.auditoriaService.registrar({
+      usuario: usuarioActual,
+      accion: 'Cierre de sesión',
+      modulo: 'Autenticación',
+      detalles: 'Sesión cerrada correctamente'
+    });
+
+    this.authService.logout();
     this.router.navigate(['/login']);
   }
 
   irGestionXmlJson() {
-    this.router.navigate(['/exportacion-importacion']);
+    this.router.navigate(['/storage-manager']);
   }
 }

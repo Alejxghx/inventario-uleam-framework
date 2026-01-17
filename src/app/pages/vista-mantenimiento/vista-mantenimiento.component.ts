@@ -1,40 +1,17 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { NgIf, NgFor, NgClass } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-interface HistorialItem {
-  fecha: string;
-  accion: string;
-}
-
-interface Orden {
-  id: string;
-  equipoId: number;
-  equipoNombre: string;
-  ubicacion: string;
-  estado: string;
-  prioridad: string;
-  tipo: string;
-  asignado: string;
-  fechaCreacion: string;
-  fechaLimite: string;
-  descripcion: string;
-  historial: HistorialItem[];
-}
+import { OrdenesService, Orden, HistorialItem, StatsOrdenes } from '../../services/ordenes.service';
+import { InventarioService, Equipo } from '../../services/inventario.service';
+import { AuditoriaService } from '../../services/auditoria.service';
+import { AuthService } from '../../services/auth.service';
 
 interface EquipoInv {
   id: number;
   nombre: string;
   ubicacion: string;
   serie: string;
-}
-
-interface StatsOrdenes {
-  pendientes: number;
-  enProceso: number;
-  completadas: number;
-  total: number;
 }
 
 @Component({
@@ -44,7 +21,7 @@ interface StatsOrdenes {
   templateUrl: './vista-mantenimiento.component.html',
   styleUrls: ['./vista-mantenimiento.component.scss'],
 })
-export class VistaMantenimientoComponent {
+export class VistaMantenimientoComponent implements OnInit {
   stats: StatsOrdenes = { pendientes: 0, enProceso: 0, completadas: 0, total: 0 };
 
   tabActivo: 'ordenes' | 'historial' | 'calendario' = 'ordenes';
@@ -66,7 +43,7 @@ export class VistaMantenimientoComponent {
   equiposInventario: EquipoInv[] = [];
 
   formOrden = {
-    equipoId: '' as number | '' ,
+    equipoId: '' as number | '',
     tipo: '',
     prioridad: 'Media',
     asignado: '',
@@ -77,36 +54,41 @@ export class VistaMantenimientoComponent {
   ordenActual: Orden | null = null;
   notaNueva = '';
 
-  constructor(private router: Router) {
+  constructor(
+    private router: Router,
+    private ordenesService: OrdenesService,
+    private inventarioService: InventarioService,
+    private auditoriaService: AuditoriaService,
+    private authService: AuthService
+  ) {}
+
+  ngOnInit() {
     this.cargarDatos();
   }
 
-  private get Sistema() {
-    return (window as any).SistemaULEAM;
-  }
-
   cargarDatos() {
-    if (!this.Sistema) {
-      console.error('SistemaULEAM no disponible');
-      return;
-    }
+    // Cargar órdenes
+    this.ordenesService.obtenerTodas().subscribe(ordenes => {
+      this.ordenes = ordenes;
+      this.actualizarEstadisticas();
+      this.filtrarOrdenes();
+      this.calcularHistorial();
+      this.calcularCalendario();
+    });
 
-    this.ordenes = this.Sistema.Ordenes.obtenerTodas();
-    this.equiposInventario = this.Sistema.Inventario.obtenerTodos();
-    this.actualizarEstadisticas();
-    this.filtrarOrdenes();
-    this.calcularHistorial();
-    this.calcularCalendario();
+    // Cargar equipos del inventario
+    this.inventarioService.getTodosLocal().subscribe(equipos => {
+      this.equiposInventario = equipos.map(e => ({
+        id: e.id || 0,
+        nombre: e.nombre,
+        ubicacion: e.ubicacion,
+        serie: e.serie
+      }));
+    });
   }
 
   actualizarEstadisticas() {
-    const s = this.Sistema.Ordenes.obtenerEstadisticas();
-    this.stats = {
-      pendientes: s.pendientes,
-      enProceso: s.enProceso,
-      completadas: s.completadas,
-      total: s.total,
-    };
+    this.stats = this.ordenesService.obtenerEstadisticas();
   }
 
   filtrarOrdenes() {
@@ -116,7 +98,7 @@ export class VistaMantenimientoComponent {
     this.ordenesFiltradas = this.ordenes.filter((orden) => {
       const coincideBusqueda =
         !q ||
-        orden.id.toLowerCase().includes(q) ||
+        orden.id?.toLowerCase().includes(q) ||
         orden.equipoNombre.toLowerCase().includes(q);
 
       return (
@@ -129,7 +111,7 @@ export class VistaMantenimientoComponent {
 
   limpiarFiltros() {
     this.filtros = { busqueda: '', estado: '', prioridad: '' };
-    this.cargarDatos();
+    this.filtrarOrdenes();
   }
 
   cambiarTab(tab: 'ordenes' | 'historial' | 'calendario') {
@@ -150,7 +132,7 @@ export class VistaMantenimientoComponent {
       equipo: eq,
       ordenes: ords
         .filter((o: Orden) => o.equipoId === eq.id)
-        .sort((a, b) => (a.fechaCreacion < b.fechaCreacion ? 1 : -1)),
+        .sort((a, b) => (a.fechaCreacion && b.fechaCreacion && a.fechaCreacion < b.fechaCreacion ? 1 : -1)),
     }));
   }
 
@@ -193,16 +175,18 @@ export class VistaMantenimientoComponent {
   }
 
   guardarOrden() {
-    if (!this.Sistema) return;
-
     const equipoId = Number(this.formOrden.equipoId);
     const equipo = this.equiposInventario.find((e) => e.id === equipoId);
+    
     if (!equipo) {
       alert('Por favor selecciona un equipo');
       return;
     }
 
-    const nuevaOrden = {
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Sistema';
+
+    const nuevaOrden: Partial<Orden> = {
       equipoId: equipo.id,
       equipoNombre: equipo.nombre,
       ubicacion: equipo.ubicacion,
@@ -214,10 +198,19 @@ export class VistaMantenimientoComponent {
       descripcion: this.formOrden.descripcion,
     };
 
-    this.Sistema.Ordenes.agregar(nuevaOrden);
-    alert('✅ Orden de trabajo creada correctamente');
-    this.cerrarModalOrden();
-    this.cargarDatos();
+    this.ordenesService.agregar(nuevaOrden).subscribe(orden => {
+      // Registrar en auditoría
+      this.auditoriaService.registrar({
+        usuario: usuarioActual,
+        accion: 'Creación de orden',
+        modulo: 'Mantenimiento',
+        detalles: `Orden ${orden.id} creada para equipo: ${orden.equipoNombre}`
+      });
+
+      alert('✅ Orden de trabajo creada correctamente');
+      this.cerrarModalOrden();
+      this.cargarDatos();
+    });
   }
 
   verDetalleOrden(orden: Orden) {
@@ -233,36 +226,65 @@ export class VistaMantenimientoComponent {
   }
 
   agregarNotaOrden() {
-    if (!this.Sistema || !this.ordenActual) return;
+    if (!this.ordenActual || !this.ordenActual.id) return;
+    
     const nota = this.notaNueva.trim();
     if (!nota) {
       alert('Por favor escribe una nota');
       return;
     }
 
-    this.Sistema.Ordenes.agregarNota(this.ordenActual.id, nota);
-    alert('✅ Nota agregada correctamente');
-    this.cargarDatos();
-    const actualizada = this.ordenes.find((o) => o.id === this.ordenActual!.id);
-    if (actualizada) this.ordenActual = actualizada;
-    this.notaNueva = '';
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Sistema';
+
+    this.ordenesService.agregarNota(this.ordenActual.id, `${usuarioActual}: ${nota}`)
+      .subscribe(ordenActualizada => {
+        if (ordenActualizada) {
+          alert('✅ Nota agregada correctamente');
+          this.ordenActual = ordenActualizada;
+          this.notaNueva = '';
+          this.cargarDatos();
+        }
+      });
   }
 
   cambiarEstadoOrden(orden: Orden, nuevoEstado: string) {
-    if (!this.Sistema) return;
+    if (!orden.id) return;
     if (!confirm(`¿Cambiar estado a "${nuevoEstado}"?`)) return;
 
-    this.Sistema.Ordenes.cambiarEstado(orden.id, nuevoEstado);
-    alert('✅ Estado actualizado correctamente');
-    this.cargarDatos();
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Sistema';
+
+    this.ordenesService.cambiarEstado(orden.id, nuevoEstado).subscribe(() => {
+      // Registrar en auditoría
+      this.auditoriaService.registrar({
+        usuario: usuarioActual,
+        accion: 'Cambio de estado',
+        modulo: 'Mantenimiento',
+        detalles: `Orden ${orden.id}: ${orden.estado} → ${nuevoEstado}`
+      });
+
+      alert('✅ Estado actualizado correctamente');
+      this.cargarDatos();
+    });
   }
 
   cerrarSesion() {
-    this.Sistema?.Utils?.cerrarSesionGlobal();
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Usuario';
+
+    this.auditoriaService.registrar({
+      usuario: usuarioActual,
+      accion: 'Cierre de sesión',
+      modulo: 'Autenticación',
+      detalles: 'Sesión cerrada'
+    });
+
+    this.authService.logout();
     this.router.navigate(['/login']);
   }
 
   irGestionXmlJson() {
-    this.router.navigate(['/exportacion-importacion']);
+    this.router.navigate(['/storage-manager']);
   }
 }

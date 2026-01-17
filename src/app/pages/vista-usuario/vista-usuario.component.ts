@@ -1,35 +1,11 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { NgIf, NgFor, NgClass, CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-
-interface Equipo {
-  nombre: string;
-  tipo: string;
-  ubicacion: string;
-  estado: string;
-  serie: string;
-  responsable: string;
-  valor: number;
-  fecha: string;
-}
-
-interface Orden {
-  id: string;
-  tipo: string;
-  equipoNombre: string;
-  descripcion: string;
-  estado: string;
-  fechaCreacion: string;
-}
-
-interface StatsInventario {
-  total: number;
-  activos: number;
-  enReparacion: number;
-  dadosDeBaja: number;
-  valorTotal: number;
-}
+import { InventarioService, Equipo, StatsInventario } from '../../services/inventario.service';
+import { OrdenesService, Orden } from '../../services/ordenes.service';
+import { AuditoriaService } from '../../services/auditoria.service';
+import { AuthService } from '../../services/auth.service';
 
 @Component({
   selector: 'app-vista-usuario',
@@ -38,7 +14,7 @@ interface StatsInventario {
   templateUrl: './vista-usuario.component.html',
   styleUrls: ['./vista-usuario.component.scss'],
 })
-export class VistaUsuarioComponent {
+export class VistaUsuarioComponent implements OnInit {
   tabActivo: 'inventario' | 'ubicaciones' | 'estadisticas' | 'mantenimientos' = 'inventario';
 
   equipos: Equipo[] = [];
@@ -69,45 +45,55 @@ export class VistaUsuarioComponent {
 
   timelineMantenimiento: Orden[] = [];
 
-  constructor(private router: Router) {
+  constructor(
+    private router: Router,
+    private inventarioService: InventarioService,
+    private ordenesService: OrdenesService,
+    private auditoriaService: AuditoriaService,
+    private authService: AuthService
+  ) {}
+
+  ngOnInit() {
     this.cargarDatos();
   }
 
-  private get Sistema() {
-    return (window as any).SistemaULEAM;
-  }
-
   cargarDatos() {
-    if (!this.Sistema) {
-      console.error('SistemaULEAM no disponible');
-      return;
-    }
+    console.log('🔍 Vista Usuario - Cargando datos...');
+    
+    this.inventarioService.getTodosLocal().subscribe(equipos => {
+      console.log('✅ Equipos cargados:', equipos.length);
+      
+      this.equipos = equipos;
+      this.inventarioFiltrado = [...this.equipos];
 
-    this.equipos = this.Sistema.Inventario.obtenerTodos();
-    this.inventarioFiltrado = [...this.equipos];
+      const stats = this.inventarioService.obtenerEstadisticas(equipos);
+      this.stats = stats;
 
-    const stats: StatsInventario = this.Sistema.Inventario.obtenerEstadisticas();
-    this.stats = stats;
+      const total = stats.total || 0;
+      this.porcActivos = total ? Math.round((stats.activos / total) * 100) : 0;
+      this.porcReparacion = total ? Math.round((stats.enReparacion / total) * 100) : 0;
+      this.porcBaja = total ? Math.round((stats.dadosDeBaja / total) * 100) : 0;
 
-    const total = stats.total || 0;
-    this.porcActivos = total ? Math.round((stats.activos / total) * 100) : 0;
-    this.porcReparacion = total ? Math.round((stats.enReparacion / total) * 100) : 0;
-    this.porcBaja = total ? Math.round((stats.dadosDeBaja / total) * 100) : 0;
+      const ubicacionesUnicas = new Set(this.equipos.map((e) => e.ubicacion)).size;
+      this.resumenTexto = `Su facultad cuenta con <strong>${total} equipos registrados</strong> distribuidos en <strong>${ubicacionesUnicas} ubicaciones</strong>. 
+        El <strong>${this.porcActivos}% están operativos</strong> y hay <strong>${stats.enReparacion} equipos</strong> en mantenimiento.`;
 
-    const ubicacionesUnicas = new Set(this.equipos.map((e) => e.ubicacion)).size;
-    this.resumenTexto = `Su facultad cuenta con <strong>${total} equipos registrados</strong> distribuidos en <strong>${ubicacionesUnicas} ubicaciones</strong>. 
-      El <strong>${this.porcActivos}% están operativos</strong> y hay <strong>${stats.enReparacion} equipos</strong> en mantenimiento.`;
+      this.inversionTotal = stats.valorTotal;
+      this.promedioEquipo = total ? stats.valorTotal / total : 0;
+      this.valorReparacion = this.equipos
+        .filter((e) => e.estado === 'En reparación')
+        .reduce((sum, e) => sum + (e.valor || 0), 0);
 
-    this.inversionTotal = stats.valorTotal;
-    this.promedioEquipo = total ? stats.valorTotal / total : 0;
-    this.valorReparacion = this.equipos
-      .filter((e) => e.estado === 'En reparación')
-      .reduce((sum, e) => sum + (e.valor || 0), 0);
+      this.cargarFiltrosBase();
+      this.calcularUbicaciones();
+      this.calcularBarrasTipos();
+    });
 
-    this.cargarFiltrosBase();
-    this.calcularUbicaciones();
-    this.calcularBarrasTipos();
-    this.calcularTimeline();
+    // Cargar órdenes para el timeline
+    this.ordenesService.obtenerTodas().subscribe(ordenes => {
+      console.log('✅ Órdenes cargadas:', ordenes.length);
+      this.calcularTimeline(ordenes);
+    });
   }
 
   cargarFiltrosBase() {
@@ -152,7 +138,6 @@ export class VistaUsuarioComponent {
 
     if (tab === 'ubicaciones') this.calcularUbicaciones();
     if (tab === 'estadisticas') this.calcularBarrasTipos();
-    if (tab === 'mantenimientos') this.calcularTimeline();
   }
 
   calcularUbicaciones() {
@@ -200,25 +185,83 @@ export class VistaUsuarioComponent {
     }));
   }
 
-  calcularTimeline() {
-    const ordenes: Orden[] = this.Sistema?.Ordenes?.obtenerTodas() || [];
+  calcularTimeline(ordenes: Orden[]) {
     this.timelineMantenimiento = ordenes.slice().reverse().slice(0, 10);
   }
 
   exportarExcel() {
-    alert('📥 Exportando a Excel...\n\nSe descargará un archivo con todos los equipos y sus detalles.');
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Usuario';
+
+    this.auditoriaService.registrar({
+      usuario: usuarioActual,
+      accion: 'Exportación Excel',
+      modulo: 'Reportes',
+      detalles: `Exportación de inventario completo (${this.equipos.length} equipos)`
+    });
+
+    // Crear CSV (como Excel básico)
+    const headers = ['Equipo', 'Tipo', 'Ubicación', 'Estado', 'Serie', 'Responsable', 'Valor', 'Fecha'];
+    const rows = this.inventarioFiltrado.map(e => [
+      e.nombre,
+      e.tipo,
+      e.ubicacion,
+      e.estado,
+      e.serie,
+      e.responsable,
+      e.valor?.toString() || '0',
+      e.fecha || ''
+    ]);
+
+    const csv = [
+      headers.join(','),
+      ...rows.map(r => r.map(c => `"${c}"`).join(','))
+    ].join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `inventario_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+
+    alert('✅ Archivo Excel descargado correctamente');
   }
 
   exportarPDF() {
-    alert('📄 Generando reporte PDF...\n\nSe creará un documento con el inventario completo.');
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Usuario';
+
+    this.auditoriaService.registrar({
+      usuario: usuarioActual,
+      accion: 'Exportación PDF',
+      modulo: 'Reportes',
+      detalles: `Generación de reporte PDF (${this.equipos.length} equipos)`
+    });
+
+    // Abrir ventana de impresión (simula PDF)
+    window.print();
+    
+    alert('📄 Use "Guardar como PDF" en la ventana de impresión');
   }
 
   cerrarSesion() {
-    this.Sistema?.Utils?.cerrarSesionGlobal();
+    const sesion = this.authService.getSesion();
+    const usuarioActual = sesion?.nombre || 'Usuario';
+
+    this.auditoriaService.registrar({
+      usuario: usuarioActual,
+      accion: 'Cierre de sesión',
+      modulo: 'Autenticación',
+      detalles: 'Sesión cerrada'
+    });
+
+    this.authService.logout();
     this.router.navigate(['/login']);
   }
 
   irGestionXmlJson() {
-    this.router.navigate(['/exportacion-importacion']);
+    this.router.navigate(['/storage-manager']);
   }
 }
