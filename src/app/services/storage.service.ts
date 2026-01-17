@@ -7,7 +7,7 @@ import { Injectable } from '@angular/core';
 @Injectable({ providedIn: 'root' })
 export class StorageService {
   // Claves de almacenamiento
-  private readonly KEYS = {
+  public readonly KEYS = {
     USUARIOS: 'uleam_usuarios',
     INVENTARIO: 'uleam_inventario',
     ORDENES: 'uleam_ordenes',

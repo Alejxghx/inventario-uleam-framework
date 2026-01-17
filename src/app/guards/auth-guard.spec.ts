@@ -29,7 +29,6 @@ describe('AuthGuard', () => {
     TestBed.configureTestingModule({
       providers: [
         AuthGuard,
-        { provide: AuthService, useValue: authSvc },
         { provide: Router, useValue: router },
       ],
     });

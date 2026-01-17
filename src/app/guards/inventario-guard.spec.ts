@@ -30,7 +30,6 @@ describe('inventarioGuard', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        { provide: AuthService, useValue: authSvc },
         { provide: Router, useValue: router },
       ],
     });

@@ -14,29 +14,45 @@ export interface UsuarioSesion {
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private _sesion$ = new BehaviorSubject<UsuarioSesion | null>(this.loadFromStorage());
+  private _sesion$ = new BehaviorSubject<UsuarioSesion | null>(null);
 
-  constructor(private storage: StorageService) {}
+  constructor(private storage: StorageService) {
+    console.log('🔍 CONSTRUCTOR AuthService - storage:', this.storage);
+    
+    const sesion = this.loadFromStorage();
+    if (sesion) {
+      this._sesion$.next(sesion);
+    }
+  }
 
   get sesion$(): Observable<UsuarioSesion | null> {
     return this._sesion$.asObservable();
   }
 
   loginFake(usuario: UsuarioSesion) {
-    const usuarioConFecha = {
-      ...usuario,
-      fechaIngreso: new Date().toISOString()
+    console.log('🔍 DEBUG - storage en loginFake:', this.storage);
+
+    const usuarioConFecha = { 
+      ...usuario, 
+      fechaIngreso: new Date().toISOString() 
     };
     
     this._sesion$.next(usuarioConFecha);
-    this.storage.set(this.storage.keys.SESION, usuarioConFecha);
-    
-    console.log('✅ Sesión iniciada y guardada en localStorage:', usuarioConFecha);
+
+    if (!this.storage) {
+      console.error('❌ StorageService no disponible en loginFake');
+      return;
+    }
+
+    this.storage.set(this.storage.KEYS.SESION, usuarioConFecha);
+    console.log('✅ Sesión iniciada:', usuarioConFecha);
   }
 
   logout() {
     this._sesion$.next(null);
-    this.storage.remove(this.storage.keys.SESION);
+    if (this.storage) {
+      this.storage.remove(this.storage.KEYS.SESION);
+    }
     console.log('🚪 Sesión cerrada y removida de localStorage');
   }
 
@@ -54,7 +70,12 @@ export class AuthService {
   }
 
   private loadFromStorage(): UsuarioSesion | null {
-    const sesion = this.storage.get<UsuarioSesion>(this.storage.keys.SESION);
+    if (!this.storage) {
+      console.warn('⚠️ StorageService no disponible en loadFromStorage');
+      return null;
+    }
+    
+    const sesion = this.storage.get<UsuarioSesion>(this.storage.KEYS.SESION);
     if (sesion) {
       console.log('✅ Sesión recuperada de localStorage:', sesion);
     }
@@ -63,10 +84,11 @@ export class AuthService {
 
   actualizarSesion(cambios: Partial<UsuarioSesion>) {
     const actual = this._sesion$.value;
-    if (actual) {
+    if (actual && this.storage) {
       const actualizada = { ...actual, ...cambios };
       this._sesion$.next(actualizada);
-      this.storage.set(this.storage.keys.SESION, actualizada);
+      this.storage.set(this.storage.KEYS.SESION, actualizada);
+      console.log('✅ Sesión actualizada:', actualizada);
     }
   }
 }
