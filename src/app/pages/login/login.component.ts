@@ -2,18 +2,14 @@ import { Component, OnInit } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { NgIf } from '@angular/common';
-import { AuthService, UsuarioSesion } from '../../services/auth.service'; 
+import { AuthService, UsuarioSesion } from '../../services/auth.service';
+import { UsuariosService } from '../../services/usuarios.service'; 
 
 type RolKey =
   | 'Administrador'
   | 'Encargado de Inventario'
   | 'Técnico de Mantenimiento'
   | 'Decanos, Directores y Profesores';
-
-interface Credenciales {
-  user: string;
-  password: string;
-}
 
 @Component({
   selector: 'app-login',
@@ -65,13 +61,6 @@ export class LoginComponent implements OnInit {
     'Decanos, Directores y Profesores': '/usuario',
   };
 
-  private credentialsByRole: Record<RolKey, Credenciales> = {
-    Administrador: { user: 'admin', password: '1234' },
-    'Encargado de Inventario': { user: 'inventario', password: '1234' },
-    'Técnico de Mantenimiento': { user: 'mantenimiento', password: '1234' },
-    'Decanos, Directores y Profesores': { user: 'usuario', password: '1234' },
-  };
-
   // Mapa RolKey -> rol del AuthService
   private rolMapa: Record<RolKey, UsuarioSesion['rol']> = {
     Administrador: 'ADMIN',
@@ -84,6 +73,7 @@ export class LoginComponent implements OnInit {
     private router: Router,
     private route: ActivatedRoute,
     private auth: AuthService,
+    private usuariosService: UsuariosService,
   ) {}
 
   ngOnInit() {
@@ -100,18 +90,26 @@ export class LoginComponent implements OnInit {
   }
 
   onSubmit() {
-    const esperado = this.credentialsByRole[this.rol];
-    if (esperado && this.usuario.trim() === esperado.user && this.clave.trim() === esperado.password) {
-      // guardar sesión en AuthService
-      this.auth.loginFake({
-        id: 1,
-        nombre: this.usuario,
-        usuario: this.usuario,
-        rol: this.rolMapa[this.rol],
-      });
+    const user = this.usuariosService.buscarPorCredenciales(this.usuario.trim(), this.clave.trim());
+    if (user && user.estado === 'Activo') {
+      const rolSesion = this.rolMapa[user.rol as RolKey];
+      if (rolSesion) {
+        // Actualizar último acceso
+        user.ultimoAcceso = new Date().toLocaleDateString('es-EC');
+        this.usuariosService.actualizar(user.id!, user).subscribe();
 
-      const destino = this.roleToPage[this.rol] || '/inventario';
-      this.router.navigateByUrl(destino);
+        this.auth.loginFake({
+          id: user.id!,
+          nombre: user.nombre,
+          usuario: user.usuario,
+          rol: rolSesion,
+        });
+
+        const destino = this.roleToPage[user.rol as RolKey] || '/usuario';
+        this.router.navigateByUrl(destino);
+      } else {
+        this.error = true;
+      }
     } else {
       this.error = true;
     }
